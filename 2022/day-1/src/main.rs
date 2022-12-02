@@ -9,6 +9,6 @@ fn main() {
 
     data.sort_unstable_by_key(|e| Reverse(*e));
 
-    println!("pt 1 {}", data.iter().nth(0).unwrap());
+    println!("pt 1 {}", data.first().unwrap());
     println!("pt 2 {}", data.iter().take(3).sum::<u64>());
 }
