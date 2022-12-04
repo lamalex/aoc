@@ -3,5 +3,10 @@
 members = [
     "2022/day-1",
     "2022/day-2",
-    "2022/day-3"
+    "2022/day-3",
+    "2022/day-4"
 ]
+
+[workspace.dependencies]
+im = "15.1.0"
+itertools = "0.10.5"
