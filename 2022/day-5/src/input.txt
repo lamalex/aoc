@@ -7,6 +7,7 @@
 [P] [G] [R] [Z] [Z] [C] [Z] [G] [P]
 [B] [W] [N] [P] [D] [V] [G] [L] [T]
  1   2   3   4   5   6   7   8   9 
+
 move 5 from 4 to 9
 move 3 from 5 to 1
 move 12 from 9 to 6

@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 itertools = { workspace = true }
+nom = "7.1.1"
