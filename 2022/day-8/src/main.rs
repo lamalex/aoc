@@ -1,5 +1,9 @@
+use std::cell::RefCell;
+
 fn main() {
-    println!("Hello, world!");
+    let input = include_str!("input.txt");
+    let forest = parse_input(input);
+    println!("{}", count_visible(&forest));
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -16,6 +20,7 @@ impl Tree {
         }
     }
 
+    #[cfg(test)]
     pub fn new_with_meta(height: u8, meta: TreeMeta) -> Self {
         Self { height, meta }
     }
@@ -46,6 +51,7 @@ impl TreeMeta {
         }
     }
 
+    #[cfg(test)]
     pub fn new(
         max_north: Option<u8>,
         max_east: Option<u8>,
@@ -61,25 +67,98 @@ impl TreeMeta {
     }
 }
 
-fn count_visible(forest: &[Vec<Tree>]) -> u64 {
+fn count_visible(forest: &[Vec<RefCell<Tree>>]) -> u64 {
     forest
         .iter()
         .flat_map(|row| row.iter())
-        .filter(|t| t.is_visible())
+        .filter(|t| t.borrow().is_visible())
         .count() as u64
 }
 
-fn parse_input(input: &str) -> Vec<Vec<Tree>> {
-    let forest = input
+fn parse_input(input: &str) -> Vec<Vec<RefCell<Tree>>> {
+    let forest: Vec<Vec<RefCell<Tree>>> = input
         .lines()
-        .map(|line| line.chars().map(|c| Tree::new(c as u8 - b'0')).collect())
+        .map(|line| {
+            line.chars()
+                .map(|c| RefCell::new(Tree::new(c as u8 - b'0')))
+                .collect()
+        })
         .collect();
+
+    // find the max northern neighbor
+    // means start at the top and move down
+    // 30373
+    // 25512
+    // 65332
+    // 33549
+    // 35390
+    for i in 1..forest.len() {
+        for j in 0..forest[i].len() {
+            let t = &forest[i][j];
+            let other_t = &forest[i - 1][j];
+
+            let max = Some(other_t
+                .borrow()
+                .meta
+                .max_north
+                .map(|m| other_t.borrow().height.max(m))
+                .unwrap_or(other_t.borrow().height));
+            
+            t.borrow_mut().meta.max_north = max;
+        }
+    }
+    // find max south
+    // means start at the bottom and move upwards
+    for i in (0..(forest.len() - 1)).rev() {
+        for j in 0..forest[i].len() {
+            let t = &forest[i][j];
+            let other_t = &forest[i + 1][j];
+            let max = Some(other_t
+                .borrow()
+                .meta
+                .max_south
+                .map(|m| other_t.borrow().height.max(m))
+                .unwrap_or(other_t.borrow().height));
+            t.borrow_mut().meta.max_south = max;
+        }
+    }
+    // find max east means scan right to left
+    for i in 0..forest.len() {
+        for j in (0..(forest[i].len() - 1)).rev() {
+            let t = &forest[i][j];
+            let other_t = &forest[i][j + 1];
+            let max = Some(other_t
+                .borrow()
+                .meta
+                .max_east
+                .map(|m| other_t.borrow().height.max(m))
+                .unwrap_or(other_t.borrow().height));
+            t.borrow_mut().meta.max_east = max;
+        }
+    }
+    // find max west
+    // menas scan left to right
+    for i in 0..forest.len() {
+        for j in 1..forest[i].len() {
+            let t = &forest[i][j];
+            let other_t = &forest[i][j - 1];
+            let max = Some(other_t
+                .borrow()
+                .meta
+                .max_west
+                .map(|m| other_t.borrow().height.max(m))
+                .unwrap_or(other_t.borrow().height));
+            t.borrow_mut().meta.max_west = max;
+        }
+    }
 
     forest
 }
 
 #[cfg(test)]
 mod test {
+    use std::cell::RefCell;
+
     use crate::{count_visible, parse_input, Tree, TreeMeta};
 
     #[test]
@@ -90,53 +169,118 @@ mod test {
 33549
 35390";
 
-        let _expected = &[
-            [3, 0, 3, 7, 3],
-            [2, 5, 5, 1, 2],
-            [6, 5, 3, 3, 2],
-            [3, 3, 5, 4, 9],
-            [3, 5, 3, 9, 0],
-        ];
-
         let expected = vec![
             vec![
-                Tree::new_with_meta(3, TreeMeta::new(None, Some(7), Some(6), None)),
-                Tree::new_with_meta(0, TreeMeta::new(None, Some(7), Some(5), Some(3))),
-                Tree::new_with_meta(3, TreeMeta::new(None, Some(7), Some(5), Some(3))),
-                Tree::new_with_meta(7, TreeMeta::new(None, Some(3), Some(9), Some(3))),
-                Tree::new_with_meta(3, TreeMeta::new(None, None, Some(9), Some(7))),
+                RefCell::new(Tree::new_with_meta(
+                    3,
+                    TreeMeta::new(None, Some(7), Some(6), None),
+                )),
+                RefCell::new(Tree::new_with_meta(
+                    0,
+                    TreeMeta::new(None, Some(7), Some(5), Some(3)),
+                )),
+                RefCell::new(Tree::new_with_meta(
+                    3,
+                    TreeMeta::new(None, Some(7), Some(5), Some(3)),
+                )),
+                RefCell::new(Tree::new_with_meta(
+                    7,
+                    TreeMeta::new(None, Some(3), Some(9), Some(3)),
+                )),
+                RefCell::new(Tree::new_with_meta(
+                    3,
+                    TreeMeta::new(None, None, Some(9), Some(7)),
+                )),
             ],
             vec![
-                Tree::new_with_meta(2, TreeMeta::new(Some(3), Some(5), Some(6), None)),
-                Tree::new_with_meta(5, TreeMeta::new(Some(0), Some(5), Some(5), Some(2))),
-                Tree::new_with_meta(5, TreeMeta::new(Some(3), Some(2), Some(5), Some(5))),
-                Tree::new_with_meta(1, TreeMeta::new(Some(7), Some(2), Some(9), Some(5))),
-                Tree::new_with_meta(2, TreeMeta::new(Some(3), None, Some(9), Some(5))),
+                RefCell::new(Tree::new_with_meta(
+                    2,
+                    TreeMeta::new(Some(3), Some(5), Some(6), None),
+                )),
+                RefCell::new(Tree::new_with_meta(
+                    5,
+                    TreeMeta::new(Some(0), Some(5), Some(5), Some(2)),
+                )),
+                RefCell::new(Tree::new_with_meta(
+                    5,
+                    TreeMeta::new(Some(3), Some(2), Some(5), Some(5)),
+                )),
+                RefCell::new(Tree::new_with_meta(
+                    1,
+                    TreeMeta::new(Some(7), Some(2), Some(9), Some(5)),
+                )),
+                RefCell::new(Tree::new_with_meta(
+                    2,
+                    TreeMeta::new(Some(3), None, Some(9), Some(5)),
+                )),
             ],
             vec![
-                Tree::new_with_meta(6, TreeMeta::new(Some(3), Some(5), Some(3), None)),
-                Tree::new_with_meta(5, TreeMeta::new(Some(5), Some(3), Some(5), Some(6))),
-                Tree::new_with_meta(3, TreeMeta::new(Some(5), Some(3), Some(5), Some(6))),
-                Tree::new_with_meta(3, TreeMeta::new(Some(7), Some(2), Some(9), Some(6))),
-                Tree::new_with_meta(2, TreeMeta::new(Some(3), None, Some(9), Some(6))),
+                RefCell::new(Tree::new_with_meta(
+                    6,
+                    TreeMeta::new(Some(3), Some(5), Some(3), None),
+                )),
+                RefCell::new(Tree::new_with_meta(
+                    5,
+                    TreeMeta::new(Some(5), Some(3), Some(5), Some(6)),
+                )),
+                RefCell::new(Tree::new_with_meta(
+                    3,
+                    TreeMeta::new(Some(5), Some(3), Some(5), Some(6)),
+                )),
+                RefCell::new(Tree::new_with_meta(
+                    3,
+                    TreeMeta::new(Some(7), Some(2), Some(9), Some(6)),
+                )),
+                RefCell::new(Tree::new_with_meta(
+                    2,
+                    TreeMeta::new(Some(3), None, Some(9), Some(6)),
+                )),
             ],
             vec![
-                Tree::new_with_meta(3, TreeMeta::new(Some(6), Some(9), Some(3), None)),
-                Tree::new_with_meta(3, TreeMeta::new(Some(5), Some(9), Some(5), Some(3))),
-                Tree::new_with_meta(5, TreeMeta::new(Some(5), Some(9), Some(3), Some(3))),
-                Tree::new_with_meta(4, TreeMeta::new(Some(7), Some(9), Some(9), Some(5))),
-                Tree::new_with_meta(9, TreeMeta::new(Some(3), None, Some(0), Some(5))),
+                RefCell::new(Tree::new_with_meta(
+                    3,
+                    TreeMeta::new(Some(6), Some(9), Some(3), None),
+                )),
+                RefCell::new(Tree::new_with_meta(
+                    3,
+                    TreeMeta::new(Some(5), Some(9), Some(5), Some(3)),
+                )),
+                RefCell::new(Tree::new_with_meta(
+                    5,
+                    TreeMeta::new(Some(5), Some(9), Some(3), Some(3)),
+                )),
+                RefCell::new(Tree::new_with_meta(
+                    4,
+                    TreeMeta::new(Some(7), Some(9), Some(9), Some(5)),
+                )),
+                RefCell::new(Tree::new_with_meta(
+                    9,
+                    TreeMeta::new(Some(3), None, Some(0), Some(5)),
+                )),
             ],
             vec![
-                Tree::new_with_meta(3, TreeMeta::new(Some(6), Some(9), None, None)),
-                Tree::new_with_meta(5, TreeMeta::new(Some(5), Some(9), None, Some(3))),
-                Tree::new_with_meta(3, TreeMeta::new(Some(5), Some(9), None, Some(5))),
-                Tree::new_with_meta(9, TreeMeta::new(Some(7), Some(0), None, Some(5))),
-                Tree::new_with_meta(0, TreeMeta::new(Some(9), None, None, Some(9))),
+                RefCell::new(Tree::new_with_meta(
+                    3,
+                    TreeMeta::new(Some(6), Some(9), None, None),
+                )),
+                RefCell::new(Tree::new_with_meta(
+                    5,
+                    TreeMeta::new(Some(5), Some(9), None, Some(3)),
+                )),
+                RefCell::new(Tree::new_with_meta(
+                    3,
+                    TreeMeta::new(Some(5), Some(9), None, Some(5)),
+                )),
+                RefCell::new(Tree::new_with_meta(
+                    9,
+                    TreeMeta::new(Some(7), Some(0), None, Some(5)),
+                )),
+                RefCell::new(Tree::new_with_meta(
+                    0,
+                    TreeMeta::new(Some(9), None, None, Some(9)),
+                )),
             ],
         ];
-
-        dbg!(&expected);
 
         let actual = parse_input(input);
         assert_eq!(expected, actual);
