@@ -4,7 +4,7 @@ use std::{collections::HashSet, ops::AddAssign};
 
 fn main() {
     let input = include_str!("input.txt");
-
+    
     let grid = input
         .lines()
         .map(Move::from)
@@ -18,6 +18,7 @@ fn main() {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Grid {
+    dim: (usize, usize),
     knot_pos: Vec<Point>,
     trail: HashSet<Point>,
 }
@@ -25,6 +26,8 @@ struct Grid {
 impl Grid {
     pub fn new() -> Self {
         Self {
+            // i don't want to do the math to calculate this from the input
+            dim: (121, 121),
             knot_pos: vec![Point(0, 0); 10],
             trail: HashSet::from([Point(0, 0)]),
         }
@@ -32,23 +35,18 @@ impl Grid {
 
     pub fn step(&mut self, step_move: Move) {
         use Move::*;
-        println!("{step_move:?}");
-        for (step_i, step) in step_move.iter().enumerate() {
-            print!("({step_i}) Moved k_h: {:?} => ", self.knot_pos[0]);
+        for step in step_move.iter() {
             self.knot_pos[0] += &step;
-            println!("moved k_h: {:?}", self.knot_pos[0]);
 
             let mut i = 0;
             let last_idx = self.knot_pos.len() - 2;
             let mut iter = self.knot_pos.windows_mut::<2>();
 
             while let Some([ref mut k_1, ref mut k_2]) = iter.next() {
-                println!("pre-move : k{i}: {k_1:?}; k{}: {k_2:?}", i + 1);
-
                 if k_2.distance_to(&k_1) > std::f64::consts::SQRT_2 {
                     // there's no else case! if distance is 0 in this direction
                     // then no move
-                    print!("Moved k_{}: {:?} => ", i + 1, k_2);
+                    
                     if k_1.0 > k_2.0 {
                         *k_2 += &Right(1)
                     } else if k_1.0 < k_2.0 {
@@ -60,30 +58,31 @@ impl Grid {
                     } else if k_1.1 < k_2.1 {
                         *k_2 += &Down(1);
                     }
-                    println!("{k_2:?}");
-
                     if i == last_idx {
-                        println!("TAIL ({i}/{last_idx}) inserting {k_2:?}");
                         self.trail.insert(*k_2);
                     }
                 }
                 i += 1;
             }
+            
+            
+            #[cfg(debug_assertions)]
+            {
+                println!("{}", self);
+                let mut answer = String::new();
+                let _ = std::io::stdin().read_line(&mut answer);
+            }
         }
 
-        println!("{}", self);
-        let mut answer = String::new();
-        std::io::stdin().read_line(&mut answer);
     }
 }
 
 impl std::fmt::Display for Grid {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        const OFFSET_X: usize = 11;
-        const OFFSET_Y: usize = 6;
-        let mut grid = vec![vec![std::borrow::Cow::Borrowed("."); 26]; 21];
+        const OFFSET_X: usize = 61;
+        const OFFSET_Y: usize = 10;
+        let mut grid = vec![vec![std::borrow::Cow::Borrowed("."); self.dim.1]; self.dim.0];
 
-        let len = grid.len() - 1;
         for (i, knot) in self.knot_pos.iter().enumerate().rev() {
             let stamp = if i == 0 {
                 std::borrow::Cow::Borrowed("H")
@@ -91,10 +90,18 @@ impl std::fmt::Display for Grid {
                 std::borrow::Cow::Owned(i.to_string())
             };
 
-            grid[len - (OFFSET_Y as i64 - knot.1) as usize][(knot.0 + OFFSET_X as i64) as usize] =
+            grid[(OFFSET_Y as i64 - knot.1) as usize][(OFFSET_X as i64 + knot.0) as usize] =
                 stamp;
         }
-        let grid = grid.iter().map(|l| l.join(" ")).join("\n");
+
+        for trail_pt in self.trail.iter() {
+            let current = &mut grid[(OFFSET_Y as i64 - trail_pt.1) as usize][(OFFSET_X as i64 + trail_pt.0) as usize];
+            if !current.chars().any(|c| c.is_alphanumeric()) {
+                *current = std::borrow::Cow::Borrowed("#");
+            }
+        }
+        
+        let grid = grid.iter().map(|l| l.join("")).join("\n");
         write!(f, "\n{}", grid)
     }
 }
@@ -191,17 +198,13 @@ U 20";
         let grid = input
             .lines()
             .map(Move::from)
+            .inspect(|m| println!("== {m:?} =="))
             .fold(Grid::new(), |mut grid, next_move| {
                 grid.step(next_move);
                 grid
             });
 
         assert_eq!(36, grid.trail.len());
-    }
-
-    // #[test]
-    fn test_print() {
-        println!("{}", Grid::new());
     }
 
     #[test]
