@@ -384,7 +384,6 @@ mod test {
 35390";
 
         let forest = parse_input(input);
-        println!("{forest:?}");
         assert_eq!(8, forest[3][2].borrow().scenic_score());
     }
 }
