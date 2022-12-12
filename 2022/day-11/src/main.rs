@@ -1,35 +1,35 @@
-use core::num;
 use std::{cell::RefCell, collections::VecDeque, fmt::Debug};
 
 fn main() {
     let input = include_str!("input.txt");
     let (i, monkeys) = parser::parse_monkey_list(input).unwrap();
     let mut num_inspected = vec![0; monkeys.len()];
-    dbg!(i);
-    dbg!(&monkeys);
-    for _ in 0..20 {
+    let max_level: u64 = monkeys.iter().map(|m| m.divisor).product();
+    for _ in 0..10000 {
         for monkey in &monkeys {
-            println!("Monkey {}:", monkey.id_num);
+            // println!("Monkey {}:", monkey.id_num);
             while let Some(item) = monkey.items.borrow_mut().pop_front() {
                 num_inspected[monkey.id_num as usize] += 1;
-                println!("  Monkey inspects an item with a worry level of {item}.");
-                let level = (monkey.operation)(item);
-                println!("  Worry level updated to {level}");
+                // println!("  Monkey inspects an item with a worry level of {item}.");
+                let level = (monkey.operation)(item) % max_level;
+                // println!("  Worry level updated to {level}");
                 let next = (monkey.test)(level);
-                println!("  Item with worry level {level} is thrown to monkey {next}");
+                // println!("  Item with worry level {level} is thrown to monkey {next}");
                 monkeys[next as usize].items.borrow_mut().push_back(level);
             }
         }
     }
 
-    dbg!(num_inspected);
+    num_inspected.sort_unstable_by_key(|e| std::cmp::Reverse(*e));
+    println!("{}", num_inspected.iter().take(2).product::<u64>());
 }
 
 pub struct Monkey {
-    id_num: i64,
-    items: RefCell<VecDeque<i64>>,
-    operation: Box<dyn Fn(i64) -> i64>,
-    test: Box<dyn Fn(i64) -> i64>,
+    id_num: u64,
+    items: RefCell<VecDeque<u64>>,
+    operation: Box<dyn Fn(u64) -> u64>,
+    test: Box<dyn Fn(u64) -> u64>,
+    divisor: u64,
 }
 
 impl Debug for Monkey {
@@ -78,57 +78,61 @@ mod parser {
                 id_num,
                 items: RefCell::new(items),
                 operation,
-                test,
+                test: test.1,
+                divisor: test.0,
             },
         ))
     }
 
-    fn parse_test(i: &str) -> IResult<&str, Box<dyn Fn(i64) -> i64>> {
+    fn parse_test(i: &str) -> IResult<&str, (u64, Box<dyn Fn(u64) -> u64>)> {
         let (i, test_op) = terminated(
-            preceded(tag("Test: divisible by "), complete::i64),
+            preceded(tag("Test: divisible by "), complete::u64),
             line_ending,
         )(i)?;
         let (i, true_ret) = terminated(
-            preceded(tag("    If true: throw to monkey "), complete::i64),
+            preceded(tag("    If true: throw to monkey "), complete::u64),
             line_ending,
         )(i)?;
-        let (i, false_ret) = preceded(tag("    If false: throw to monkey "), complete::i64)(i)?;
+        let (i, false_ret) = preceded(tag("    If false: throw to monkey "), complete::u64)(i)?;
 
         Ok((
             i,
-            Box::new(move |new| {
-                if new % test_op == 0 {
-                    true_ret
-                } else {
-                    false_ret
-                }
-            }),
+            (
+                test_op,
+                Box::new(move |new| {
+                    if new % test_op == 0 {
+                        true_ret
+                    } else {
+                        false_ret
+                    }
+                }),
+            ),
         ))
     }
 
-    fn parse_operation(i: &str) -> IResult<&str, Box<dyn Fn(i64) -> i64>> {
+    fn parse_operation(i: &str) -> IResult<&str, Box<dyn Fn(u64) -> u64>> {
         preceded(
             tag("Operation: new = old "),
             alt((
-                map(preceded(tag("* "), complete::i64), |v| {
-                    Box::new(move |old| (old * v) / 3_i64) as Box<dyn Fn(i64) -> i64>
+                map(preceded(tag("* "), complete::u64), |v| {
+                    Box::new(move |old| old * v) as Box<dyn Fn(u64) -> u64>
                 }),
-                map(preceded(tag("+ "), complete::i64), |v| {
-                    Box::new(move |old| (old + v) / 3_i64) as _
+                map(preceded(tag("+ "), complete::u64), |v| {
+                    Box::new(move |old| old + v) as _
                 }),
-                map(tag("* old"), |_| Box::new(|old| (old * old) / 3_i64) as _),
+                map(tag("* old"), |_| Box::new(|old| old * old) as _),
             )),
         )(i)
     }
 
-    fn parse_monkey_id(i: &str) -> IResult<&str, i64> {
-        preceded(tag("Monkey "), terminated(complete::i64, tag(":")))(i)
+    fn parse_monkey_id(i: &str) -> IResult<&str, u64> {
+        preceded(tag("Monkey "), terminated(complete::u64, tag(":")))(i)
     }
 
-    fn parse_items(i: &str) -> IResult<&str, VecDeque<i64>> {
+    fn parse_items(i: &str) -> IResult<&str, VecDeque<u64>> {
         preceded(
             tag("Starting items: "),
-            map(separated_list1(tag(", "), complete::i64), VecDeque::from),
+            map(separated_list1(tag(", "), complete::u64), VecDeque::from),
         )(i)
     }
 
@@ -142,7 +146,7 @@ mod parser {
 
         #[test_case("Starting items: 69", VecDeque::from(vec![69]))]
         #[test_case("Starting items: 61, 94, 85, 52, 81, 90, 94, 70", VecDeque::from(vec![61, 94, 85, 52, 81, 90, 94, 70]))]
-        fn test_parse_starting_items(input: &str, expected: VecDeque<i64>) {
+        fn test_parse_starting_items(input: &str, expected: VecDeque<u64>) {
             let (_, actual) = parse_items(input).unwrap();
             assert_eq!(expected, actual);
         }
@@ -170,6 +174,7 @@ mod parser {
                 items: RefCell::new(VecDeque::from(vec![69, 99, 95, 62])),
                 operation: Box::new(|old| (old * old) / 3),
                 test: Box::new(|new| if new % 17 == 0 { 2 } else { 5 }),
+                divisor: 17,
             };
             let (_i, actual) = parse_monkey(input).unwrap();
 
@@ -230,12 +235,14 @@ Monkey 1:
                     items: RefCell::new(VecDeque::from(vec![74, 64, 74, 63, 53])),
                     operation: Box::new(|old| (old * 7) / 3),
                     test: Box::new(|new| if new % 5 == 0 { 1 } else { 6 }),
+                    divisor: 5,
                 },
                 Monkey {
                     id_num: 1,
                     items: RefCell::new(VecDeque::from(vec![69, 99, 95, 62])),
                     operation: Box::new(|old| (old * old) / 3),
                     test: Box::new(|new| if new % 17 == 0 { 2 } else { 5 }),
+                    divisor: 17,
                 },
             ];
             let (_i, actual) = parse_monkey_list(input).unwrap();
