@@ -1,19 +1,33 @@
 use itertools::Itertools;
-use parser::parse_list_of_pairs;
+
 use std::cmp::Ordering;
+use Value::*;
+
+use crate::parser::parse_all_packets;
 
 fn main() {
     let input = include_str!("input.txt");
-    let (_, pairs) = parse_list_of_pairs(input).unwrap();
-    println!(
-        "{}",
-        pairs
-            .iter()
-            .enumerate()
-            .filter_map(|(i, pair)| if pair.0 <= pair.1 { Some(i + 1) } else { None })
-            .inspect(move |i| println!("i = {i}"))
-            .sum::<usize>()
-    )
+    let dividers = vec![
+        List(vec![List(vec![Unit(2)])]),
+        List(vec![List(vec![Unit(6)])]),
+    ];
+    let (_, mut list) = parse_all_packets(input).unwrap();
+    list.append(&mut dividers.clone());
+
+    list.sort_unstable();
+    let decoder_key = list
+        .iter()
+        .enumerate()
+        .filter_map(|(i, v)| {
+            if dividers.contains(v) {
+                Some(i + 1)
+            } else {
+                None
+            }
+        })
+        .product::<usize>();
+
+    println!("{}", decoder_key);
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -85,10 +99,36 @@ const INPUT: &str = "[1,1,3,1,1]
 
 #[cfg(test)]
 mod test {
-    use crate::parser::{parse_list_of_pairs, parse_value};
+    use crate::parser::{parse_all_packets, parse_list_of_pairs, parse_value};
+    use crate::Value::*;
     use crate::INPUT;
     use std::cmp::Ordering;
     use test_case::test_case;
+
+    #[test]
+    fn test_find_decoder_key() {
+        let mut dividers = vec![
+            List(vec![List(vec![Unit(2)])]),
+            List(vec![List(vec![Unit(6)])]),
+        ];
+        let (_, mut list) = parse_all_packets(INPUT).unwrap();
+        list.append(&mut dividers.clone());
+
+        list.sort_unstable();
+        let actual = list
+            .iter()
+            .enumerate()
+            .filter_map(|(i, v)| {
+                if dividers.contains(v) {
+                    Some(i + 1)
+                } else {
+                    None
+                }
+            })
+            .product::<usize>();
+
+        assert_eq!(140, actual);
+    }
 
     #[test]
     fn test_verify_sum() {
@@ -127,12 +167,16 @@ mod parser {
     use nom::{
         branch::alt,
         bytes::complete::tag,
-        character::complete::{self, line_ending},
+        character::complete::{self, line_ending, multispace1},
         combinator::map,
         multi::separated_list0,
         sequence::{delimited, separated_pair, terminated},
         IResult,
     };
+
+    pub(crate) fn parse_all_packets(i: &str) -> IResult<&str, Vec<Value>> {
+        separated_list0(multispace1, parse_value)(i)
+    }
 
     pub(crate) fn parse_list_of_pairs(i: &str) -> IResult<&str, Vec<(Value, Value)>> {
         separated_list0(line_ending, terminated(parse_value_pair, line_ending))(i)
@@ -163,10 +207,65 @@ mod parser {
         use super::Value::*;
 
         use crate::{
-            parser::{parse_list_of_pairs, parse_value, parse_value_pair},
+            parser::{parse_all_packets, parse_list_of_pairs, parse_value, parse_value_pair},
             Value, INPUT,
         };
         use test_case::test_case;
+
+        #[test]
+        fn test_parse_list_of_values() {
+            let expected = vec![
+                List(vec![Unit(1), Unit(1), Unit(3), Unit(1), Unit(1)]),
+                List(vec![Unit(1), Unit(1), Unit(5), Unit(1), Unit(1)]),
+                List(vec![
+                    List(vec![Unit(1)]),
+                    List(vec![Unit(2), Unit(3), Unit(4)]),
+                ]),
+                List(vec![List(vec![Unit(1)]), Unit(4)]),
+                List(vec![Unit(9)]),
+                List(vec![List(vec![Unit(8), Unit(7), Unit(6)])]),
+                List(vec![List(vec![Unit(4), Unit(4)]), Unit(4), Unit(4)]),
+                List(vec![
+                    List(vec![Unit(4), Unit(4)]),
+                    Unit(4),
+                    Unit(4),
+                    Unit(4),
+                ]),
+                List(vec![Unit(7), Unit(7), Unit(7), Unit(7)]),
+                List(vec![Unit(7), Unit(7), Unit(7)]),
+                List(vec![]),
+                List(vec![Unit(3)]),
+                List(vec![List(vec![List(vec![])])]),
+                List(vec![List(vec![])]),
+                List(vec![
+                    Unit(1),
+                    List(vec![
+                        Unit(2),
+                        List(vec![
+                            Unit(3),
+                            List(vec![Unit(4), List(vec![Unit(5), Unit(6), Unit(7)])]),
+                        ]),
+                    ]),
+                    Unit(8),
+                    Unit(9),
+                ]),
+                List(vec![
+                    Unit(1),
+                    List(vec![
+                        Unit(2),
+                        List(vec![
+                            Unit(3),
+                            List(vec![Unit(4), List(vec![Unit(5), Unit(6), Unit(0)])]),
+                        ]),
+                    ]),
+                    Unit(8),
+                    Unit(9),
+                ]),
+            ];
+
+            let (_, actual) = parse_all_packets(INPUT).unwrap();
+            assert_eq!(expected, actual);
+        }
 
         #[test]
         fn test_parse_list_of_pairs() {
