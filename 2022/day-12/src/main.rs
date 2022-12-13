@@ -1,6 +1,5 @@
-use std::ops::{Index, Sub};
-
 use pathfinding::prelude::dijkstra;
+use std::ops::{Index, Sub};
 
 fn main() {
     let input = include_str!("input.txt");
@@ -9,13 +8,32 @@ fn main() {
     println!("Start {}", pathfinder.start_loc);
     println!("Destination {}", pathfinder.dest_loc);
 
-    let r = dijkstra(
-        &pathfinder.start_loc,
-        |p| pathfinder.grid.successors(*p),
-        |p| *p == pathfinder.dest_loc,
-    );
+    let r: usize = pathfinder
+        .grid
+        .0
+        .iter()
+        .enumerate()
+        .flat_map(|(y, row)| {
+            row.iter().enumerate().filter_map(move |(x, c)| {
+                if c == &Cell::Step(b'a') {
+                    Some(Point { x, y })
+                } else {
+                    None
+                }
+            })
+        })
+        .filter_map(|a_cell| {
+            dijkstra(
+                &a_cell,
+                |p| pathfinder.grid.successors(*p),
+                |p| *p == pathfinder.dest_loc,
+            )
+        })
+        .map(|paths| paths.1)
+        .min()
+        .unwrap();
 
-    println!("shortest path is {}", r.unwrap().1);
+    println!("shortest path is {}", r);
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
