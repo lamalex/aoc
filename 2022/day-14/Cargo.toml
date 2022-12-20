@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 nom = { workspace = true }
+itertools = { workspace = true }
 
 [dev-dependencies]
 test-case = { workspace = true }

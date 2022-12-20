@@ -1,9 +1,16 @@
+use std::{
+    convert::Infallible,
+    fmt,
+    ops::{Index, IndexMut},
+    str::FromStr,
+};
+
 fn main() {
     let input = include_str!("input.txt");
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct Point {
+pub struct Point {
     x: u64,
     y: u64,
 }
@@ -14,7 +21,125 @@ impl From<(u64, u64)> for Point {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Object {
+    Air,
+    Rock,
+    Sand,
+}
+
+impl Object {
+    fn to_str(&self) -> &'static str {
+        match self {
+            Object::Air => ".",
+            Object::Rock => "#",
+            Object::Sand => "*",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Grid {
+    inner: Vec<Vec<Object>>,
+}
+
+impl fmt::Display for Grid {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            self.inner
+                .iter()
+                .map(|row| row.iter().map(|c| c.to_str()).collect::<Vec<_>>().join(""))
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    }
+}
+
+impl FromStr for Grid {
+    type Err = Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (_, rock_points) = parser::parse_to_rock_points(s).unwrap();
+        let [maxx, maxy]: [usize; 2] =
+            rock_points.iter().fold([usize::MIN, usize::MIN], |acc, p| {
+                [acc[0].max(p.x as usize), acc[1].max(p.y as usize)]
+            });
+        let mut grid = Self {
+            inner: vec![vec![Object::Air; maxx + 1]; maxy + 1],
+        };
+        Ok(rock_points.into_iter().fold(grid, |mut grid, p| {
+            grid[p] = Object::Rock;
+            grid
+        }))
+    }
+}
+
+impl Index<Point> for Grid {
+    type Output = Object;
+
+    fn index(&self, index: Point) -> &Self::Output {
+        &self.inner[index.y as usize][index.x as usize]
+    }
+}
+
+impl IndexMut<Point> for Grid {
+    fn index_mut(&mut self, index: Point) -> &mut Self::Output {
+        &mut self.inner[index.y as usize][index.x as usize]
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{Grid, Object, Point};
+
+    #[test]
+    fn test_generate_grid() {
+        let mut expected: Grid = Grid {
+            inner: vec![vec![Object::Air; 504]; 10],
+        };
+
+        let rock_points = vec![
+            Point::from((498, 4)),
+            Point::from((498, 5)),
+            Point::from((498, 6)),
+            Point::from((496, 6)),
+            Point::from((497, 6)),
+            Point::from((498, 6)),
+            Point::from((502, 4)),
+            Point::from((503, 4)),
+            Point::from((502, 4)),
+            Point::from((502, 5)),
+            Point::from((502, 6)),
+            Point::from((502, 7)),
+            Point::from((502, 8)),
+            Point::from((502, 9)),
+            Point::from((494, 9)),
+            Point::from((495, 9)),
+            Point::from((496, 9)),
+            Point::from((497, 9)),
+            Point::from((498, 9)),
+            Point::from((499, 9)),
+            Point::from((500, 9)),
+            Point::from((501, 9)),
+            Point::from((502, 9)),
+        ];
+        for point in rock_points {
+            expected[point] = Object::Rock;
+        }
+
+        println!("{expected}");
+        let i = "498,4 -> 498,6 -> 496,6
+503,4 -> 502,4 -> 502,9 -> 494,9";
+        let actual: Grid = i.parse().unwrap();
+        println!("{actual}");
+        assert_eq!(expected, actual);
+    }
+}
+
 mod parser {
+    use itertools::Itertools;
     use nom::{
         bytes::complete::tag,
         character::complete::{self, line_ending},
@@ -25,6 +150,24 @@ mod parser {
     };
 
     use crate::Point;
+
+    pub fn parse_to_rock_points(i: &str) -> IResult<&str, Vec<Point>> {
+        map(parse_list_of_lists_of_points, |list_of_lists| {
+            list_of_lists
+                .into_iter()
+                .flat_map(|list| {
+                    list.into_iter().tuple_windows().flat_map(|(p1, p2)| {
+                        let x_range = p1.x.min(p2.x)..=p1.x.max(p2.x);
+                        let y_range = p1.y.min(p1.y)..=p1.y.max(p2.y);
+                        x_range
+                            .into_iter()
+                            .cartesian_product(y_range)
+                            .map(Point::from)
+                    })
+                })
+                .collect::<Vec<_>>()
+        })(i)
+    }
 
     fn parse_list_of_lists_of_points(i: &str) -> IResult<&str, Vec<Vec<Point>>> {
         separated_list1(line_ending, parse_list_of_points)(i)
@@ -45,11 +188,45 @@ mod parser {
     mod test {
         use super::parse_pair_to_point;
         use crate::{
-            parser::{parse_list_of_lists_of_points, parse_list_of_points},
+            parser::{parse_list_of_lists_of_points, parse_list_of_points, parse_to_rock_points},
             Point,
         };
         use test_case::test_case;
 
+        #[test]
+        fn test_parse_to_all_points() {
+            let i = "498,4 -> 498,6 -> 496,6
+503,4 -> 502,4 -> 502,9 -> 494,9";
+
+            let expected = vec![
+                Point::from((498, 4)),
+                Point::from((498, 5)),
+                Point::from((498, 6)),
+                Point::from((496, 6)),
+                Point::from((497, 6)),
+                Point::from((498, 6)),
+                Point::from((502, 4)),
+                Point::from((503, 4)),
+                Point::from((502, 4)),
+                Point::from((502, 5)),
+                Point::from((502, 6)),
+                Point::from((502, 7)),
+                Point::from((502, 8)),
+                Point::from((502, 9)),
+                Point::from((494, 9)),
+                Point::from((495, 9)),
+                Point::from((496, 9)),
+                Point::from((497, 9)),
+                Point::from((498, 9)),
+                Point::from((499, 9)),
+                Point::from((500, 9)),
+                Point::from((501, 9)),
+                Point::from((502, 9)),
+            ];
+
+            let (_, actual) = parse_to_rock_points(i).unwrap();
+            assert_eq!(expected, actual);
+        }
         #[test]
         fn test_parse_list_of_lists_of_points() {
             let i = "498,4 -> 498,6 -> 496,6

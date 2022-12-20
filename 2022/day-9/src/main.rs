@@ -16,20 +16,24 @@ fn main() {
     println!("{}", grid.trail.len());
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+struct EdgeMeta {
+    max: i64,
+    min: i64,
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct Grid {
-    dim: (usize, usize),
-    knot_pos: Vec<Point>,
-    trail: HashSet<Point>,
+    dim: Point<EdgeMeta>,
+    knot_pos: Vec<Point<i64>>,
+    trail: HashSet<Point<i64>>,
 }
 
 impl Grid {
     pub fn new() -> Self {
         Self {
-            // i don't want to do the math to calculate this from the input
-            dim: (121, 121),
-            knot_pos: vec![Point(0, 0); 10],
-            trail: HashSet::from([Point(0, 0)]),
+            dim: Point::default(),
+            knot_pos: vec![Point::default(); 10],
+            trail: HashSet::from([Point::default()]),
         }
     }
 
@@ -44,18 +48,15 @@ impl Grid {
 
             while let Some([ref mut k_1, ref mut k_2]) = iter.next() {
                 if k_2.distance_to(&k_1) > std::f64::consts::SQRT_2 {
-                    // there's no else case! if distance is 0 in this direction
-                    // then no move
-                    
-                    if k_1.0 > k_2.0 {
+                    if k_1.x > k_2.x {
                         *k_2 += &Right(1)
-                    } else if k_1.0 < k_2.0 {
+                    } else if k_1.x < k_2.x {
                         *k_2 += &Left(1)
                     }
 
-                    if k_1.1 > k_2.1 {
+                    if k_1.y > k_2.y {
                         *k_2 += &Up(1);
-                    } else if k_1.1 < k_2.1 {
+                    } else if k_1.y < k_2.y {
                         *k_2 += &Down(1);
                     }
                     if i == last_idx {
@@ -64,14 +65,15 @@ impl Grid {
                 }
                 i += 1;
             }
-            
-            
+             
             #[cfg(debug_assertions)]
             {
                 println!("{}", self);
                 let mut answer = String::new();
                 let _ = std::io::stdin().read_line(&mut answer);
             }
+
+            self.dim.update_boundary(self.knot_pos[0]);
         }
 
     }
@@ -79,9 +81,11 @@ impl Grid {
 
 impl std::fmt::Display for Grid {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        const OFFSET_X: usize = 61;
-        const OFFSET_Y: usize = 10;
-        let mut grid = vec![vec![std::borrow::Cow::Borrowed("."); self.dim.1]; self.dim.0];
+        
+        println!("x len {} y len {}", self.dim.x.len(), self.dim.y.len());
+        let mut grid = vec![vec![std::borrow::Cow::Borrowed("."); self.dim.y.len()]; self.dim.x.len()];
+        let offset_x: usize = self.dim.x.min.abs() as usize;
+        let offset_y: usize = self.dim.y.max as usize;
 
         for (i, knot) in self.knot_pos.iter().enumerate().rev() {
             let stamp = if i == 0 {
@@ -90,12 +94,12 @@ impl std::fmt::Display for Grid {
                 std::borrow::Cow::Owned(i.to_string())
             };
 
-            grid[(OFFSET_Y as i64 - knot.1) as usize][(OFFSET_X as i64 + knot.0) as usize] =
+            grid[(offset_y as i64 - knot.y) as usize][(offset_x as i64 + knot.x) as usize] =
                 stamp;
         }
 
         for trail_pt in self.trail.iter() {
-            let current = &mut grid[(OFFSET_Y as i64 - trail_pt.1) as usize][(OFFSET_X as i64 + trail_pt.0) as usize];
+            let current = &mut grid[(offset_y as i64 - trail_pt.y) as usize][(offset_x as i64 + trail_pt.x) as usize];
             if !current.chars().any(|c| c.is_alphanumeric()) {
                 *current = std::borrow::Cow::Borrowed("#");
             }
@@ -105,28 +109,42 @@ impl std::fmt::Display for Grid {
         write!(f, "\n{}", grid)
     }
 }
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-struct Point(i64, i64);
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Default)]
+struct Point<T> { x: T, y: T }
 
-impl Point {
+impl Point<i64> {
     fn distance_to(&self, other: &Self) -> f64 {
-        f64::sqrt((self.0 - other.0).pow(2) as f64 + (self.1 - other.1).pow(2) as f64)
+        f64::sqrt((self.x - other.x).pow(2) as f64 + (self.y - other.y).pow(2) as f64)
     }
 }
 
-impl AddAssign<&Move> for Point {
+impl Point<EdgeMeta> {
+    fn update_boundary(&mut self, point: Point<i64>) {
+        self.x.min = self.x.min.min(point.x);
+        self.x.max = self.x.max.max(point.x);
+        self.y.min = self.y.min.min(point.y);
+        self.y.max = self.y.max.max(point.y);
+    }
+}
+
+impl EdgeMeta {
+    fn len(&self) -> usize {
+        (self.max - self.min).abs() as usize
+    }
+}
+
+impl AddAssign<&Move> for Point<i64> {
     fn add_assign(&mut self, rhs: &Move) {
         use Move::*;
 
         let next_pos = match rhs {
-            Up(val) => Point(self.0, self.1.saturating_add(*val as i64)),
-            Down(val) => Point(self.0, self.1.saturating_sub(*val as i64)),
-            Left(val) => Point(self.0.saturating_sub(*val as i64), self.1),
-            Right(val) => Point(self.0.saturating_add(*val as i64), self.1),
-        };
-
-        self.0 = next_pos.0;
-        self.1 = next_pos.1;
+            Up(val) => Point { x: self.x, y: self.y.saturating_add(*val as i64) },
+            Down(val) => Point { x: self.x, y: self.y.saturating_sub(*val as i64) },
+            Left(val) => Point { x: self.x.saturating_sub(*val as i64), y: self.y },
+            Right(val) => Point { x: self.x.saturating_add(*val as i64), y: self.y },
+         };
+        self.x = next_pos.x;
+        self.y = next_pos.y;
     }
 }
 
@@ -204,19 +222,20 @@ U 20";
                 grid
             });
 
+        dbg!(&grid);
         assert_eq!(36, grid.trail.len());
     }
 
     #[test]
     fn test_distance_fn_lateral() {
-        assert_eq!(1., Point(0, 0).distance_to(&Point(0, 1)))
+        assert_eq!(1., Point::default().distance_to(&Point { x: 0, y: 1 }))
     }
 
     #[test]
     fn test_distance_fn_diag() {
         assert_eq!(
             std::f64::consts::SQRT_2,
-            Point(0, 0).distance_to(&Point(1, 1))
+            Point::default().distance_to(&Point { x: 1, y: 1})
         )
     }
 }
