@@ -18,7 +18,7 @@ pub mod parser {
         F: Parser<&'a str, &'a str, E1>,
         E1: ParseError<&'a str> + FromExternalError<&'a str, ParseIntError>,
     {
-        map_res(digit1, |digits: &str| digits.parse::<i32>())
+        map_res(f, |digits: &str| digits.parse::<i32>())
     }
 
     #[cfg(test)]
