@@ -1,4 +1,4 @@
-use aoc_2024::day3::parser::{self, Conditional, Instruction};
+use aoc_2024::day3::parser;
 
 pub fn main() {
     let input = include_str!("../../data/day3.txt");
@@ -6,18 +6,7 @@ pub fn main() {
 }
 
 fn compute(input: &str) -> i64 {
-    parser::parse_instructions(input)
-        .unwrap()
-        .1
-        .into_iter()
-        .fold((Conditional::Do, 0), |(state, sum), next| match next {
-            Instruction::Conditional(v) => (v, sum),
-            Instruction::Mul((a, b)) => match state {
-                Conditional::Do => (state, sum + (a * b)),
-                Conditional::Dont => (state, sum),
-            },
-        })
-        .1
+    parser::parse_and_compute(input).unwrap().1
 }
 
 #[cfg(test)]
