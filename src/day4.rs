@@ -1,7 +1,43 @@
 const XMAS: &[u8] = "XMAS".as_bytes();
 const SAMX: &[u8] = "SAMX".as_bytes();
+const MAS: &[u8] = "MAS".as_bytes();
+const SAM: &[u8] = "SAM".as_bytes();
 
 const XMAS_LEN: usize = XMAS.len();
+const MAS_LEN: usize = MAS.len();
+
+pub fn count_x_mas(matrix: &[&[u8]]) -> u32 {
+    let mut count = 0;
+
+    for y in 0..matrix.len() {
+        if y > matrix.len() - MAS_LEN {
+            break;
+        }
+
+        for x in 0..matrix[y].len() {
+            if x > matrix[y].len() - MAS_LEN {
+                break;
+            }
+
+            let candidate = matrix[y..y+3].iter().map(|row| &row[x..x+3]).collect::<Vec<_>>();
+
+            if check_3_by_3(&candidate) {
+                count += 1;
+            }
+        }
+    }
+
+    count
+}
+
+fn check_3_by_3(matrix: &[&[u8]]) -> bool {
+    let dr_candidate = matrix[0..3].iter().enumerate().map(|(i, &c)| c[i]).collect::<Vec<_>>();
+    // dbg!(String::from_utf8(dr_candidate.clone()));
+    let dl_candidate = matrix[0..3].iter().enumerate().map(|(i, &c)| c[2 - i]).collect::<Vec<_>>();
+
+    (dr_candidate == MAS || dr_candidate == SAM) && (dl_candidate == MAS || dl_candidate == SAM)
+}
+
 pub fn count_xmas(matrix: &[&[u8]]) -> u32 {
     let mut count = 0;
 
@@ -186,6 +222,36 @@ mod test {
     fn test_count_xmas() {
         let actual = count_xmas(&SAMPLE);
         assert_eq!(actual, 18);
+    }
+
+    #[test]
+    fn test_count_x_mas() {
+        let actual = count_x_mas(&SAMPLE);
+        assert_eq!(actual, 9);
+    }
+
+    #[test_case(vec![
+        "M.M".as_bytes(),
+        ".A.".as_bytes(),
+        "S.S".as_bytes(),
+    ], true)]
+    #[test_case(vec![
+        "S.M".as_bytes(),
+        ".A.".as_bytes(),
+        "S.M".as_bytes(),
+    ], true)]
+    #[test_case(vec![
+        "S.S".as_bytes(),
+        ".A.".as_bytes(),
+        "M.M".as_bytes(),
+    ], true)]
+    #[test_case(vec![
+        "M.S".as_bytes(),
+        ".A.".as_bytes(),
+        "M.S".as_bytes(),
+    ], true)]
+    fn test_check_3_by_3(matrix: Vec<&[u8]>, expected: bool) {
+        assert_eq!(check_3_by_3(&matrix), expected);
     }
 
     #[test_case(vec!["XMAS".as_bytes()], (0,0), true)]
