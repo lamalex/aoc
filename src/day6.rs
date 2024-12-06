@@ -201,6 +201,16 @@ impl World {
         pos
     }
 
+    pub fn place_obstacle(&mut self, spot: Position) -> Result<(), ()> {
+        match self.grid[spot.row_idx.0][spot.col_idx.0] {
+            GridItem::Empty => {
+                self.grid[spot.row_idx.0][spot.col_idx.0] = GridItem::Rock;
+                Ok(())
+            },
+            _ => Err(())
+        }
+    }
+
     pub fn guard_location(&self) -> &Position {
         &self.guard_loc
     }
