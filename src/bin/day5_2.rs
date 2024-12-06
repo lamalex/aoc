@@ -1,4 +1,5 @@
 use aoc_2024::day5::{self, Page};
+use itertools::Itertools;
 
 pub fn main() {
     let input = include_str!("../../data/day5.txt");
@@ -13,14 +14,12 @@ fn compute(input: &str) -> u32 {
         .map(|update| {
             update.into_iter()
                 .map(|pg| Page::new(pg, &rules))
-                .collect::<Vec<_>>()
         })
-        .filter(|update| !update.is_sorted())
-        .map(|mut update| {
-            update.sort();
-            (update.len(), update)
+        .filter(|update| !update.clone().is_sorted())
+        .map(|update| {
+            update.sorted_unstable()
         })
-        .map(|(len, update)| update[len/2])
+        .flat_map(|mut update| update.nth(update.len() / 2))
         .map(|page| page.number())
         .sum::<u32>()
 }
