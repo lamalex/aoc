@@ -1,0 +1,20 @@
+[package]
+name = "aoc-2025"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "day1"
+path = "src/day1.rs"
+
+[dependencies]
+itertools.workspace = true
+nom.workspace = true
+
+[dev-dependencies]
+test-case.workspace = true
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+panic = "abort"

@@ -1,4 +1,5 @@
 [workspace]
+resolver = "2"
 
 members = [
     "2022/day-1",
@@ -14,10 +15,13 @@ members = [
     "2022/day-11",
     "2022/day-12",
     "2022/day-13",
+    "2023/day-1",
+    "2023/day-2",
+    "2023/day-3", "2023.2", "2024","2025",
 ]
 
 [workspace.dependencies]
-im = "15.1.0"
-itertools = "0.10.5"
-nom = "7.1.1"
-test-case = "2.2"
+im = "15.1"
+itertools = "0.14"
+nom = "7"
+test-case = "3.3.1"
