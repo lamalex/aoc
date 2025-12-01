@@ -4,14 +4,14 @@ pub fn main() {
     let mut dial = Dial::new();
     let data = include_str!("../data/day1.txt");
 
-    let (_, count) = parser::parse_apply_and_count(&mut dial, data).unwrap();
-    println!("Hit zero {count} times");
+    let (_, (hits, passes)) = parser::parse_apply_and_count(&mut dial, data).unwrap();
+    println!("{hits:?}");
+    println!("{passes:?}");
 }
-
 
 #[derive(Debug, PartialEq, Eq)]
 struct Dial {
-    state: i32
+    state: i32,
 }
 
 #[derive(Debug, PartialEq)]
@@ -23,9 +23,7 @@ enum Instruction {
 impl Dial {
     #[must_use]
     pub fn new() -> Self {
-        Self {
-            state: 50
-        }
+        Self { state: 50 }
     }
 
     pub fn state(&self) -> i32 {
@@ -38,13 +36,26 @@ impl AddAssign<Instruction> for Dial {
         self.state = match rhs {
             Instruction::Left(v) => self.state + v,
             Instruction::Right(v) => self.state - v,
-        }.rem_euclid(100)
+        }
+        .rem_euclid(100)
     }
 }
 
 mod parser {
+    #[derive(Debug, PartialEq, Eq)]
+    pub struct ZeroStopCount(pub usize);
+
+    #[derive(Debug, PartialEq, Eq)]
+    pub struct PassZeroCount(pub i32);
+
     use nom::{
-        IResult, branch::alt, bytes::complete::tag, character::complete::{digit1, line_ending}, combinator::{map_res, opt}, multi::fold_many0, sequence::{terminated, tuple}
+        branch::alt,
+        bytes::complete::tag,
+        character::complete::{digit1, line_ending},
+        combinator::{map_res, opt},
+        multi::fold_many0,
+        sequence::{terminated, tuple},
+        IResult,
     };
 
     use super::{Dial, Instruction};
@@ -58,7 +69,7 @@ mod parser {
         let inst = match dir {
             "R" => Instruction::Right(num),
             "L" => Instruction::Left(num),
-            _ => unreachable!()
+            _ => unreachable!(),
         };
 
         Ok((input, inst))
@@ -67,20 +78,35 @@ mod parser {
     pub fn parse_apply_and_count<'a>(
         dial: &'a mut Dial,
         input: &'a str,
-    ) -> IResult<&'a str, usize> {
+    ) -> IResult<&'a str, (ZeroStopCount, PassZeroCount)> {
         let parser = terminated(parse_instruction, opt(line_ending));
 
-        fold_many0(parser, || 0usize, |mut count,  instr| {
-            *dial += instr;
+        fold_many0(
+            parser,
+            || (ZeroStopCount(0), PassZeroCount(0)),
+            |(mut hits, mut passes), instr| {
+                match instr {
+                    Instruction::Left(v) => {
+                        passes.0 += (dial.state() + v) / 100;
+                    }
+                    Instruction::Right(v) => {
+                        if dial.state() != 0 && v >= dial.state() {
+                            passes.0 += 1;
+                        }
+                        passes.0 += (dial.state - v).abs() / 100;
+                    }
+                };
 
-            if dial.state() == 0 {
-                count += 1;
-            }
+                *dial += instr;
 
-            count
-        })(input)
+                if dial.state() == 0 {
+                    hits.0 += 1;
+                }
+
+                (hits, passes)
+            },
+        )(input)
     }
-
 
     #[cfg(test)]
     mod test {
@@ -100,13 +126,14 @@ mod parser {
 #[cfg(test)]
 mod test {
     use super::*;
+
     use test_case::test_case;
 
     #[test_case(Vec::from([Instruction::Right(51)]), 99)]
     #[test_case(Vec::from([Instruction::Left(51)]), 1)]
     #[test_case(Vec::from([Instruction::Left(50)]), 0)]
     #[test_case(Vec::from([Instruction::Right(50)]), 0)]
-    fn turn(instructions: Vec<Instruction>, expected: i32) {
+    fn add_assign_mut_state(instructions: Vec<Instruction>, expected: i32) {
         let dial = instructions
             .into_iter()
             .fold(Dial::new(), |mut dial, next| {
